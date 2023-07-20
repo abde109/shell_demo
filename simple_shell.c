@@ -1,5 +1,131 @@
 #include "shell.h"
 
+int unset_alias(info_t *info, char *str)
+{
+	char *p, c;
+	int ret;
+
+	p = _strchr(str, '=');
+	if (!p)
+		return (1);
+	c = *p;
+	*p = 0;
+	ret = delete_node_at_index(&(info->alias),
+		get_node_index(info->alias, node_starts_with(info->alias, str, -1)));
+	*p = c;
+	return (ret);
+}
+
+int set_alias(info_t *info, char *str)
+{
+	char *p;
+
+	p = _strchr(str, '=');
+	if (!p)
+		return (1);
+	if (!*++p)
+		return (unset_alias(info, str));
+
+	unset_alias(info, str);
+	return (add_node_end(&(info->alias), str, 0) == NULL);
+}
+
+int print_alias(list_t *node)
+{
+	char *p = NULL, *a = NULL;
+
+	if (node)
+	{
+		p = _strchr(node->str, '=');
+		for (a = node->str; a <= p; a++)
+			_putchar(*a);
+		_putchar('\'');
+		_puts(p + 1);
+		_puts("'\n");
+		return (0);
+	}
+	return (1);
+}
+
+ssize_t input_buf(info_t *info, char **buf, size_t *len)
+{
+	ssize_t r = 0;
+	size_t len_p = 0;
+
+	if (!*len)
+	{
+		free(*buf);
+		*buf = NULL;
+		signal(SIGINT, sigintHandler);
+#if USE_GETLINE
+		r = getline(buf, &len_p, stdin);
+#else
+		r = _getline(info, buf, &len_p);
+#endif
+		if (r > 0)
+		{
+			if ((*buf)[r - 1] == '\n')
+			{
+				(*buf)[r - 1] = '\0';
+				r--;
+			}
+			info->linecount_flag = 1;
+			remove_comments(*buf);
+			build_history_list(info, *buf, info->histcount++);
+			{
+				*len = r;
+				info->cmd_buf = buf;
+			}
+		}
+	}
+	return (r);
+}
+
+ssize_t read_buf(info_t *info, char *buf, size_t *i)
+{
+	ssize_t r = 0;
+
+	if (*i)
+		return (0);
+	r = read(info->readfd, buf, READ_BUF_SIZE);
+	if (r >= 0)
+		*i = r;
+	return (r);
+}
+
+void fork_cmd(info_t *info)
+{
+	pid_t child_pid;
+
+	child_pid = fork();
+	if (child_pid == -1)
+	{
+		perror("Error:");
+		return;
+	}
+	if (child_pid == 0)
+	{
+		if (execve(info->path, info->argv, get_environ(info)) == -1)
+		{
+			free_info(info, 1);
+			if (errno == EACCES)
+				exit(126);
+			exit(1);
+		}
+	}
+	else
+	{
+		wait(&(info->status));
+		if (WIFEXITED(info->status))
+		{
+			info->status = WEXITSTATUS(info->status);
+			if (info->status == 126)
+				print_error(info, "Permission denied\n");
+		}
+	}
+}
+
+/* toem_atoi.c */
 int interactive(info_t *info)
 {
 	return (isatty(STDIN_FILENO) && info->readfd <= 2);
@@ -48,7 +174,9 @@ int _atoi(char *s)
 
 	return (output);
 }
+/* toem_atoi.c */
 
+/* toem_builtin.c */
 int _myexit(info_t *info)
 {
 	int exitcheck;
@@ -125,60 +253,14 @@ int _myhelp(info_t *info)
 		_puts(*arg_array);
 	return (0);
 }
+/* toem_builtin.c */
 
+/* toem_builtin1.c */
 int _myhistory(info_t *info)
 {
 	print_list(info->history);
 	return (0);
 }
-
-int unset_alias(info_t *info, char *str)
-{
-	char *p, c;
-	int ret;
-
-	p = _strchr(str, '=');
-	if (!p)
-		return (1);
-	c = *p;
-	*p = 0;
-	ret = delete_node_at_index(&(info->alias),
-		get_node_index(info->alias, node_starts_with(info->alias, str, -1)));
-	*p = c;
-	return (ret);
-}
-
-int set_alias(info_t *info, char *str)
-{
-	char *p;
-
-	p = _strchr(str, '=');
-	if (!p)
-		return (1);
-	if (!*++p)
-		return (unset_alias(info, str));
-
-	unset_alias(info, str);
-	return (add_node_end(&(info->alias), str, 0) == NULL);
-}
-
-int print_alias(list_t *node)
-{
-	char *p = NULL, *a = NULL;
-
-	if (node)
-	{
-		p = _strchr(node->str, '=');
-		for (a = node->str; a <= p; a++)
-			_putchar(*a);
-		_putchar('\'');
-		_puts(p + 1);
-		_puts("'\n");
-		return (0);
-	}
-	return (1);
-}
-
 
 int _myalias(info_t *info)
 {
@@ -207,7 +289,9 @@ int _myalias(info_t *info)
 
 	return (0);
 }
+/* toem_builtin1.c */
 
+/* toem_environ.c */
 int _myenv(info_t *info)
 {
 	print_list_str(info->env);
@@ -266,7 +350,9 @@ int populate_env_list(info_t *info)
 	info->env = node;
 	return (0);
 }
+/* toem_environ.c */
 
+/* toem_errors.c */
 void _eputs(char *str)
 {
 	int i = 0;
@@ -322,7 +408,9 @@ int _putsfd(char *str, int fd)
 	}
 	return (i);
 }
+/* toem_errors.c */
 
+/* toem_errors1.c */
 int _erratoi(char *s)
 {
 	int i = 0;
@@ -427,7 +515,9 @@ void remove_comments(char *buf)
 			break;
 		}
 }
+/* toem_errors1.c */
 
+/* toem_exits.c */
 char *_strncpy(char *dest, char *src, int n)
 {
 	int i, j;
@@ -480,41 +570,9 @@ char *_strchr(char *s, char c)
 
 	return (NULL);
 }
+/* toem_exits.c */
 
-ssize_t input_buf(info_t *info, char **buf, size_t *len)
-{
-	ssize_t r = 0;
-	size_t len_p = 0;
-
-	if (!*len)
-	{
-		free(*buf);
-		*buf = NULL;
-		signal(SIGINT, sigintHandler);
-#if USE_GETLINE
-		r = getline(buf, &len_p, stdin);
-#else
-		r = _getline(info, buf, &len_p);
-#endif
-		if (r > 0)
-		{
-			if ((*buf)[r - 1] == '\n')
-			{
-				(*buf)[r - 1] = '\0';
-				r--;
-			}
-			info->linecount_flag = 1;
-			remove_comments(*buf);
-			build_history_list(info, *buf, info->histcount++);
-			{
-				*len = r;
-				info->cmd_buf = buf;
-			}
-		}
-	}
-	return (r);
-}
-
+/*toem_getline.c */
 ssize_t get_input(info_t *info)
 {
 	static char *buf;
@@ -551,18 +609,6 @@ ssize_t get_input(info_t *info)
 	}
 
 	*buf_p = buf;
-	return (r);
-}
-
-ssize_t read_buf(info_t *info, char *buf, size_t *i)
-{
-	ssize_t r = 0;
-
-	if (*i)
-		return (0);
-	r = read(info->readfd, buf, READ_BUF_SIZE);
-	if (r >= 0)
-		*i = r;
 	return (r);
 }
 
@@ -611,7 +657,9 @@ void sigintHandler(__attribute__((unused))int sig_num)
 	_puts("$ ");
 	_putchar(BUF_FLUSH);
 }
+/*toem_getline.c */
 
+/* toem_getenv.c */
 char **get_environ(info_t *info)
 {
 	if (!info->environ || info->env_changed)
@@ -681,7 +729,9 @@ int _setenv(info_t *info, char *var, char *value)
 	info->env_changed = 1;
 	return (0);
 }
+/* toem_getenv.c */
 
+/* toem_getinfo.c */
 void clear_info(info_t *info)
 {
 	info->arg = NULL;
@@ -740,7 +790,9 @@ void free_info(info_t *info, int all)
 		_putchar(BUF_FLUSH);
 	}
 }
+/* toem_getinfo.c */
 
+/* toem_history.c */
 char *get_history_file(info_t *info)
 {
 	char *buf, *dir;
@@ -849,7 +901,9 @@ int renumber_history(info_t *info)
 	}
 	return (info->histcount = i);
 }
+/* toem_history.c */
 
+/* toem_lists.c */
 list_t *add_node(list_t **head, const char *str, int num)
 {
 	list_t *new_head;
@@ -972,7 +1026,9 @@ void free_list(list_t **head_ptr)
 	}
 	*head_ptr = NULL;
 }
+/* toem_lists.c */
 
+/* toem_lists1.c */
 size_t list_len(const list_t *h)
 {
 	size_t i = 0;
@@ -1059,43 +1115,9 @@ ssize_t get_node_index(list_t *head, list_t *node)
 	}
 	return (-1);
 }
+/* toem_lists1.c */
 
-int main(int ac, char **av)
-{
-	info_t info[] = { INFO_INIT };
-	int fd = 2;
-
-	asm ("mov %1, %0\n\t"
-		"add $3, %0"
-		: "=r" (fd)
-		: "r" (fd));
-
-	if (ac == 2)
-	{
-		fd = open(av[1], O_RDONLY);
-		if (fd == -1)
-		{
-			if (errno == EACCES)
-				exit(126);
-			if (errno == ENOENT)
-			{
-				_eputs(av[0]);
-				_eputs(": 0: Can't open ");
-				_eputs(av[1]);
-				_eputchar('\n');
-				_eputchar(BUF_FLUSH);
-				exit(127);
-			}
-			return (EXIT_FAILURE);
-		}
-		info->readfd = fd;
-	}
-	populate_env_list(info);
-	read_history(info);
-	hsh(info, av);
-	return (EXIT_SUCCESS);
-}
-
+/* toem_memory.c */
 int bfree(void **ptr)
 {
 	if (ptr && *ptr)
@@ -1106,7 +1128,9 @@ int bfree(void **ptr)
 	}
 	return (0);
 }
+/* toem_memory.c */
 
+/* toem_parser.c */
 int is_cmd(info_t *info, char *path)
 {
 	struct stat st;
@@ -1168,7 +1192,9 @@ char *find_path(info_t *info, char *pathstr, char *cmd)
 	}
 	return (NULL);
 }
+/* toem_parser.c */
 
+/* toem_realloc.c */
 char *_memset(char *s, char b, unsigned int n)
 {
 	unsigned int i;
@@ -1210,7 +1236,9 @@ void *_realloc(void *ptr, unsigned int old_size, unsigned int new_size)
 	free(ptr);
 	return (p);
 }
+/* toem_realloc.c */
 
+/* toem_shloop.c */
 int hsh(info_t *info, char **av)
 {
 	ssize_t r = 0;
@@ -1307,39 +1335,9 @@ void find_cmd(info_t *info)
 		}
 	}
 }
+/* toem_shloop.c */
 
-void fork_cmd(info_t *info)
-{
-	pid_t child_pid;
-
-	child_pid = fork();
-	if (child_pid == -1)
-	{
-		perror("Error:");
-		return;
-	}
-	if (child_pid == 0)
-	{
-		if (execve(info->path, info->argv, get_environ(info)) == -1)
-		{
-			free_info(info, 1);
-			if (errno == EACCES)
-				exit(126);
-			exit(1);
-		}
-	}
-	else
-	{
-		wait(&(info->status));
-		if (WIFEXITED(info->status))
-		{
-			info->status = WEXITSTATUS(info->status);
-			if (info->status == 126)
-				print_error(info, "Permission denied\n");
-		}
-	}
-}
-
+/* toem_string.c */
 int _strlen(char *s)
 {
 	int i = 0;
@@ -1386,7 +1384,9 @@ char *_strcat(char *dest, char *src)
 	*dest = *src;
 	return (ret);
 }
+/* toem_string.c */
 
+/* toem_string1.c */
 char *_strcpy(char *dest, char *src)
 {
 	int i = 0;
@@ -1446,7 +1446,9 @@ int _putchar(char c)
 		buf[i++] = c;
 	return (1);
 }
+/* toem_string1.c */
 
+/* toem_tokenizer.c */
 char **strtow(char *str, char *d)
 {
 	int i, j, k, m, numwords = 0;
@@ -1526,7 +1528,9 @@ char **strtow2(char *str, char d)
 	s[j] = NULL;
 	return (s);
 }
+/* toem_tokenizer.c */
 
+/* toem_vars.c */
 int is_chain(info_t *info, char *buf, size_t *p)
 {
 	size_t j = *p;
@@ -1641,4 +1645,41 @@ int replace_string(char **old, char *new)
 	free(*old);
 	*old = new;
 	return (1);
+}
+/* toem_vars.c */
+
+int main(int ac, char **av)
+{
+	info_t info[] = { INFO_INIT };
+	int fd = 2;
+
+	asm ("mov %1, %0\n\t"
+		"add $3, %0"
+		: "=r" (fd)
+		: "r" (fd));
+
+	if (ac == 2)
+	{
+		fd = open(av[1], O_RDONLY);
+		if (fd == -1)
+		{
+			if (errno == EACCES)
+				exit(126);
+			if (errno == ENOENT)
+			{
+				_eputs(av[0]);
+				_eputs(": 0: Can't open ");
+				_eputs(av[1]);
+				_eputchar('\n');
+				_eputchar(BUF_FLUSH);
+				exit(127);
+			}
+			return (EXIT_FAILURE);
+		}
+		info->readfd = fd;
+	}
+	populate_env_list(info);
+	read_history(info);
+	hsh(info, av);
+	return (EXIT_SUCCESS);
 }
