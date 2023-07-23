@@ -1,110 +1,104 @@
 #include "shell.h"
 
-void _free(char **buf)
+void _free(char **buffer)
 {
-    int i = 0;
+    int counter = 0;
 
-    if (buf)
+    if (buffer)
     {
-        for (i = 0; buf[i]; i++)
-            free(buf[i]);
-        free(buf);
+        for (counter = 0; buffer[counter]; counter++)
+            free(buffer[counter]);
+        free(buffer);
     }
 }
-
-
 
 void my_exit(void)
 {
     exit(EXIT_SUCCESS);
 }
 
-void my_exit_status(char **args)
+void my_exit_status(char **parameters)
 {
-    int status = atoi(args[1]);
-    free(args);
-    exit(status);
+    int exitStatus = atoi(parameters[1]);
+    free(parameters);
+    exit(exitStatus);
 }
 
-void _cd(char **args)
+void _cd(char **parameters)
 {
-    char *home;
+    char *homeDirectory;
 
-    if (!args[0])
+    if (!parameters[0])
         _perror("cd: missing argument\n");
-    else if (!args[1])
+    else if (!parameters[1])
     {
-        home = getenv("HOME");
-        if (chdir(home) != 0)
+        homeDirectory = getenv("HOME");
+        if (chdir(homeDirectory) != 0)
             _perror("cd: No such file or directory\n");
     }
     else
     {
-        if (chdir(args[1]) != 0)
+        if (chdir(parameters[1]) != 0)
             _perror("cd: No such file or directory\n");
     }
 }
 
 void env_shell(void)
 {
-    int i = 0;
+    int counter = 0;
 
-    while (environ[i] != NULL)
+    while (environ[counter] != NULL)
     {
-        _print(environ[i]);
+        _print(environ[counter]);
         _print("\n");
-        i++;
+        counter++;
     }
 }
 
-
-
-int set_env(char *name, char *value)
+int set_env(char *varName, char *varValue)
 {
-    char *env_var;
-    int len;
+    char *environmentVar;
+    int length;
 
-    len = strlen(name) + strlen(value) + 2;
-    env_var = malloc(len);
-    if (env_var == NULL)
+    length = strlen(varName) + strlen(varValue) + 2;
+    environmentVar = malloc(length);
+    if (environmentVar == NULL)
         return (-1);
-    snprintf(env_var, len, "%s=%s", name, value);
-    if (putenv(env_var) != 0)
+    snprintf(environmentVar, length, "%s=%s", varName, varValue);
+    if (putenv(environmentVar) != 0)
         return (-1);
     return (0);
 }
 
-int unset_env(char *name)
+int unset_env(char *varName)
 {
-    if (unsetenv(name) != 0)
+    if (unsetenv(varName) != 0)
         return (-1);
     return (0);
 }
 
-
-
-void execute_command(char **args, char *arg)
+void execute_command(char **parameters, char *parameter)
 {
-    int status;
-    pid_t pid;
+    int processStatus;
+    pid_t processId;
 
-    if (_strcmp(args[0], "cd") == 0)
+    if (_strcmp(parameters[0], "cd") == 0)
     {
-        _cd(args);
+        _cd(parameters);
         return;
     }
-    else if (strcmp(args[0], "env") == 0)
+    else if (strcmp(parameters[0], "env") == 0)
     {
         env_shell();
         return;
     }
-    pid = fork();
-    if (pid == 0)
+    processId = fork();
+    if (processId == 0)
     {
-        execvp(args[0], args);
+        execvp(parameters[0], parameters);
         if (errno == ENOENT)
         {
-            _perror(arg);
+            _perror(parameter);
             _perror(": No such file or directory\n");
             exit(127);
         }
@@ -114,52 +108,50 @@ void execute_command(char **args, char *arg)
             exit(127);
         }
     }
-    else if (pid > 0)
-        waitpid(pid, &status, WUNTRACED);
-    else if (pid < 0)
+    else if (processId > 0)
+        waitpid(processId, &processStatus, WUNTRACED);
+    else if (processId < 0)
         _perror("failed to fork\n");
 }
 
-char *search_path(char *filename)
+char *search_path(char *fileName)
 {
-    char *path, *path_env, *full_path;
+    char *path, *pathEnvironment, *fullPath;
 
-    if (filename[0] == '/')
+    if (fileName[0] == '/')
     {
-        if (access(filename, F_OK) == 0)
-            return (realpath(filename, NULL));
+        if (access(fileName, F_OK) == 0)
+            return (realpath(fileName, NULL));
         else
             return (NULL);
     }
 
-    path_env = malloc(MAX_PATH_LEN * sizeof(char));
-    snprintf(path_env, MAX_PATH_LEN, "/bin:%s", getenv("PATH"));
-    path = strtok(path_env, ":");
-    full_path = malloc(MAX_PATH_LEN * sizeof(char));
+    pathEnvironment = malloc(MAX_PATH_LEN * sizeof(char));
+    snprintf(pathEnvironment, MAX_PATH_LEN, "/bin:%s", getenv("PATH"));
+    path = strtok(pathEnvironment, ":");
+    fullPath = malloc(MAX_PATH_LEN * sizeof(char));
 
     while (path != NULL)
     {
-        snprintf(full_path, MAX_PATH_LEN, "%s/%s", path, filename);
-        if (access(full_path, F_OK) == 0)
+        snprintf(fullPath, MAX_PATH_LEN, "%s/%s", path, fileName);
+        if (access(fullPath, F_OK) == 0)
         {
-            free(path_env);
-            return (realpath(full_path, NULL));
+            free(pathEnvironment);
+            return (realpath(fullPath, NULL));
         }
         path = strtok(NULL, ":");
     }
 
-    free(path_env);
-    free(full_path);
+    free(pathEnvironment);
+    free(fullPath);
     return (NULL);
 }
 
-
-
 char **tokenize(char *line)
 {
-    int len = 0;
-    int capacity = 15;
-    char *delim, *token, **tokens = malloc(capacity * sizeof(char *));
+    int length = 0;
+    int bufferCapacity = 15;
+    char *delimiter, *token, **tokens = malloc(bufferCapacity * sizeof(char *));
 
     if (!tokens)
     {
@@ -167,120 +159,114 @@ char **tokenize(char *line)
         exit(1);
     }
 
-    delim = " \t\r\n";
-    token = strtok(line, delim);
+    delimiter = " \t\r\n";
+    token = strtok(line, delimiter);
 
     while (token != NULL)
     {
-        tokens[len] = token;
-        len++;
+        tokens[length] = token;
+        length++;
 
-        if (len >= capacity)
+        if (length >= bufferCapacity)
         {
-            capacity = (int)(capacity * 1.5);
-            tokens = realloc(tokens, capacity * sizeof(char *));
+            bufferCapacity = (int)(bufferCapacity * 1.5);
+            tokens = realloc(tokens, bufferCapacity * sizeof(char *));
         }
 
-        token = strtok(NULL, delim);
+        token = strtok(NULL, delimiter);
     }
 
-    tokens[len] = NULL;
+    tokens[length] = NULL;
     return (tokens);
 }
 
 char *read_line()
 {
-    char *line = NULL;
-    size_t buf = 0;
+    char *inputLine = NULL;
+    size_t bufferSize = 0;
 
-    if (getline(&line, &buf, stdin) == -1)
+    if (getline(&inputLine, &bufferSize, stdin) == -1)
     {
-        free(line);
+        free(inputLine);
         exit(1);
     }
-    return (line);
+    return (inputLine);
 }
 
-
-
-int _print(char *string)
+int _print(char *text)
 {
-    return (write(STDOUT_FILENO, string, _strlen(string)));
+    return (write(STDOUT_FILENO, text, _strlen(text)));
 }
 
-int _perror(char *err)
+int _perror(char *errorMessage)
 {
-    return (write(STDERR_FILENO, err, _strlen(err)));
+    return (write(STDERR_FILENO, errorMessage, _strlen(errorMessage)));
 }
 
-
-
-void prompt(char **argv __attribute__((unused)))
+void prompt(char **arguments __attribute__((unused)))
 {
-    char line[INPUT_LEN];
-    int is_terminal = isatty(STDIN_FILENO);
+    char inputLine[INPUT_LEN];
+    int terminalCheck = isatty(STDIN_FILENO);
 
     while (1)
     {
-        if (is_terminal)
+        if (terminalCheck)
             _print(PROMPT);
-        if (fgets(line, INPUT_LEN, stdin) == NULL)
+        if (fgets(inputLine, INPUT_LEN, stdin) == NULL)
             break;
-        file_prompt(line, argv);
+        file_prompt(inputLine, arguments);
     }
 }
 
-
-
-void run_commands_from_file(const char *filename, char **argv)
+void run_commands_from_file(const char *fileName, char **arguments)
 {
-    char line[MAX_LINE_LENGTH];
-    FILE *fp = fopen(filename, "r");
+    char inputLine[MAX_LINE_LENGTH];
+    FILE *filePointer = fopen(fileName, "r");
 
-    if (!fp)
+    if (!filePointer)
     {
-        _perror(argv[0]);
+        _perror(arguments[0]);
         _perror(": 0: Can't open");
         _perror("\n");
         exit(127);
     }
 
-    while (fgets(line, MAX_LINE_LENGTH, fp) != NULL)
+    while (fgets(inputLine, MAX_LINE_LENGTH, filePointer) != NULL)
     {
-        file_prompt(line, argv);
+        file_prompt(inputLine, arguments);
     }
 
-    fclose(fp);
+    fclose(filePointer);
 }
 
-void file_prompt(char *line, char **argv)
+void file_prompt(char *inputLine, char **arguments)
 {
-    char **tokens, prev, *l, *cmt;
-    int if_quote;
+    char **tokens, previousChar, *linePointer, *comment;
+    int quoteFlag;
 
-    prev = '\0';
-    cmt = NULL;
-    if_quote = 0;
-    l = line;
-    while (*l != '\0')
+    previousChar = '\0';
+    comment = NULL;
+    quoteFlag = 0;
+    linePointer = inputLine;
+    while (*linePointer != '\0')
     {
-        if (*l == '"' && prev != '\\')
-            if_quote = !if_quote;
-        else if (*l == '#' && prev != '\\' && !if_quote)
+        if (*linePointer == '"' && previousChar != '\\')
+            quoteFlag = !quoteFlag;
+        else if (*linePointer == '#' && previousChar != '\\' && !quoteFlag)
         {
-            if (prev == ' ')
+            if (previousChar == ' ')
             {
-                cmt = l;
+                comment = linePointer;
                 break;
             }
         }
-        prev = *l;
-        l++;
+        previousChar = *linePointer;
+        linePointer++;
     }
-    if (cmt != NULL)
-        *cmt = '\0';
-    line[strcspn(line, "\n")] = '\0';
-    tokens = tokenize(line);
+    if (comment != NULL)
+        *comment = '\0';
+    inputLine[strcspn(inputLine, "\n")] = '\0';
+    tokens = tokenize(inputLine);
     if (tokens[0] != NULL)
     {
         if (strcmp(tokens[0], "exit") == 0)
@@ -292,90 +278,86 @@ void file_prompt(char *line, char **argv)
             free(tokens);
             my_exit();
         }
-        execute_command(tokens, argv[0]);
+        execute_command(tokens, arguments[0]);
     }
     free(tokens);
 }
 
-
-
-int main(int argc, char **argv)
+int main(int argCount, char **arguments)
 {
-    if (argc == 1)
-        prompt(argv);
-    if (argc == 2)
-        run_commands_from_file(argv[1], argv);
+    if (argCount == 1)
+        prompt(arguments);
+    if (argCount == 2)
+        run_commands_from_file(arguments[1], arguments);
     return (EXIT_SUCCESS);
 }
 
-
-
-char *_strtok(char *s, char d)
+char *_strtok(char *str, char delimiter)
 {
-    char *input = NULL;
-    char *result;
-    int i = 0;
+    char *inputStr = NULL;
+    char *resultStr;
+    int counter = 0;
 
-    if (s != NULL)
-        input = s;
+    if (str != NULL)
+        inputStr = str;
 
-    if (input == NULL)
+    if (inputStr == NULL)
         return (NULL);
 
-    result = malloc(strlen(input) + 1);
+    resultStr = malloc(strlen(inputStr) + 1);
 
-    for (; input[i] != '\0'; i++)
+    for (; inputStr[counter] != '\0'; counter++)
     {
-        if (input[i] != d)
-            result[i] = input[i];
+        if (inputStr[counter] != delimiter)
+            resultStr[counter] = inputStr[counter];
         else
         {
-            result[i] = '\0';
-            input = input + i + 1;
-            return (result);
+            resultStr[counter] = '\0';
+            inputStr = inputStr + counter + 1;
+            return (resultStr);
         }
     }
 
-    result[i] = '\0';
-    input = NULL;
+    resultStr[counter] = '\0';
+    inputStr = NULL;
 
-    return (result);
+    return (resultStr);
 }
 
-int _strlen(char *s)
+int _strlen(char *str)
 {
-    int i = 0;
+    int length = 0;
 
-    if (!s)
+    if (!str)
         return (0);
 
-    while (*s++)
-        i++;
-    return (i);
+    while (*str++)
+        length++;
+    return (length);
 }
 
-int _strcmp(char *s1, char *s2)
+int _strcmp(char *str1, char *str2)
 {
-    while (*s1 && *s2)
+    while (*str1 && *str2)
     {
-        if (*s1 != *s2)
-            return (*s1 - *s2);
-        s1++;
-        s2++;
+        if (*str1 != *str2)
+            return (*str1 - *str2);
+        str1++;
+        str2++;
     }
-    if (*s1 == *s2)
+    if (*str1 == *str2)
         return (0);
     else
-        return (*s1 < *s2 ? -1 : 1);
+        return (*str1 < *str2 ? -1 : 1);
 }
 
-int _puts(char *str)
+int _puts(char *text)
 {
-    int i;
+    int counter;
 
-    if (!(str))
+    if (!(text))
         return (0);
-    for (i = 0; str[i]; i++)
-        write(STDOUT_FILENO, &str[i], 1);
-    return (i);
+    for (counter = 0; text[counter]; counter++)
+        write(STDOUT_FILENO, &text[counter], 1);
+    return (counter);
 }
